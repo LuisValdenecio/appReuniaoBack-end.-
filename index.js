@@ -2,33 +2,54 @@
  Este file será o ponto de entrada do servidor express
 //////////////////////////////////////////////////////////////////////////////*/
 
-const express = require('express')
-const app = express()
-const port = process.env.PORT || 5000
-const {Client} = require('pg');
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 5000;
+const bodyParser = require('body-parser');
+const passport = require('passport');
+const jwt = require('express-jwt');
 
-// A coneção com a base de dados será feita ja no início
-const client = new Client({
-	user: "luisServer",
-	host: "127.0.0.1",
-	database: "CEPPH-DATABASE",
-	password: "Angelina1997Nando",
-	port: 5432,
+const db = require("./models/dbInterface");
+require('./config/passport.js');
+
+var auth = jwt({
+  secret: 'mysecret',
+  userProperty: 'payload'
 });
 
-app.get('/', (req, res) => {
-  try {
-    client.connect();
-    client.query('BEGIN');
+app.use(passport.initialize());
 
-    client.query('SELECT * FROM estudante', (err,results)=>{
-      res.json(results.rows);
-    })
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "*");
+  next();
+});
 
-  } catch (ex) {
-    throw(ex);
+
+/*//////////////////////////////////////////////////////////////////////////////
+  Setting up the app middlewares
+//////////////////////////////////////////////////////////////////////////////*/
+app.use(bodyParser());
+app.use(require('body-parser').urlencoded({ extended: true }));
+
+/*//////////////////////////////////////////////////////////////////////////////
+  to catch UnauthorizedError
+//////////////////////////////////////////////////////////////////////////////*/
+app.use(function (err, req, res, next) {
+  if (err.name === 'UnauthorizedError') {
+    res.status(401);
+    res.json("weird shit");
   }
-
 });
+
+app.get('/homeadmin', auth, db.getSetupValues);
+app.get('/students', auth,  db.getAllUsers);
+app.get('/classes', auth, db.getAllClasses);
+app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_classe$/, auth, db.getClassGrade);       // -->> this might be eliminated soon! (front-end dependency)
+app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_faults$/, auth, db.getThisCLassFaults);  // -->> this might be eliminated soon! (front-end dependency)
+app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_grades$/, auth, db.getClassGrades);      // -->> this might be eliminated soon! (front-end dependency)
+app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)$/, auth, db.getAllSubjects);             // -->> this might be eliminated soon! (front-end dependency)
+app.post('/teachers',  db.saveTeacher);
+app.post('/login', db.loginUser);
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
