@@ -2,6 +2,8 @@
  Este file será o ponto de entrada do servidor express
 //////////////////////////////////////////////////////////////////////////////*/
 
+require('dotenv').config()
+
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 5000;
@@ -13,7 +15,7 @@ const db = require("./models/dbInterface");
 require('./config/passport.js');
 
 var auth = jwt({
-  secret: 'mysecret',
+  secret: process.env.API_CLIENT_SECRET,
   userProperty: 'payload'
 });
 
@@ -24,7 +26,6 @@ app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Headers", "*");
   next();
 });
-
 
 /*//////////////////////////////////////////////////////////////////////////////
   Setting up the app middlewares

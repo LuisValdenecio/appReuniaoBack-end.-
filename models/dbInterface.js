@@ -4,11 +4,11 @@ const passport = require('passport');
 const authenticator = require('../config/authentication.js');
 
 const dbConfig = {
-	user: "luisServer",
-	host: "127.0.0.1",
-	database: "CEPPH-DATABASE",
-	password: "Angelina1997Nando",
-	port: 5432,
+	user: process.env.DB_USER,
+	host: process.env.DB_HOST_SERVER,
+	database: process.env.DB_NAME,
+	password: process.env.DB_PASSWORD,
+	port: process.env.DB_SERVER_PORT
 };
 
 const pool = new Pool(dbConfig);
@@ -17,17 +17,41 @@ module.exports = {
 
 	loginUser(req, res) {
 
-    token = authenticator.generateJWT({
-	    'codUser': '123',
-	    'typeOfUser' : 'admin',
-	    'email': 'abc@gmail.com',
-	    'name': 'Luis',
-	    'exp': parseInt(new Date().getTime() / 1000),
-    });
-    res.status(200);
-    res.json({
-      "token" : token
-    });
+		// --> este código será substituído pela autenticação local do passport
+		pool.connect((err, client, done) => {
+			if (err) throw err
+			client.query('SELECT salt, hash, usercod, typeofuser, name FROM usuarios WHERE email = $1', [req.body['email']], (err,results)=> {
+				done();
+
+				if (err) {
+					console.log(err.stack)
+				} else {
+
+					if (results.rows.length == 0) {
+						// caso a senha não exista
+						res.json("conta inexistente");
+					} else {
+						// se este email existir na base de dados, conferir a passe
+						var isValid = authenticator.checkPassword(results.rows[0]['salt'], req.body['password'], results.rows[0]['hash']);
+
+						// se este usuário for válido retorna o jwt
+						if (isValid) {
+
+							var token = authenticator.generateJWT(results.rows[0]['usercod'], results.rows[0]['email'], results.rows[0]['name'], results.rows[0]['typeofuser']);
+							res.status(200);
+					    res.json({
+					      "token" : token
+					    });
+
+						} else {
+							res.json("palavra passe inválida");
+						}
+
+					}
+
+				}
+			})
+		});
 
 	},
 

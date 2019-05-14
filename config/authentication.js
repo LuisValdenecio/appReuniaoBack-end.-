@@ -5,7 +5,6 @@
 
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const config = require('./configuration.js');
 
 module.exports = {
 
@@ -30,7 +29,7 @@ module.exports = {
         'email': email,
         'name': name,
         'exp': parseInt(expiry.getTime() / 1000),
-      }, config['app_secret']);
+      }, process.env.API_CLIENT_SECRET);
 
     }
 
