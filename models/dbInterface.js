@@ -88,6 +88,38 @@ module.exports = {
 
 	},
 
+	getTeacherCoordStatus(req, res) {
+		try {
+
+			const teacherCod = req['url'].split("/")[1].split("_")[1];
+			const classCod = req['url'].split("/")[1].split("_")[0];
+
+			pool.connect((err, client, done) => {
+				if (err) throw err
+				client.query('SELECT coordenador FROM turmasdoprofessor	WHERE turma_id = $1 AND usercod = $2', [classCod, teacherCod], (err,results)=> {
+					done();
+					if (err) {
+						console.log(err.stack)
+					} else {
+
+						// se dentre os resultados houver um valor booleano true, então retorna o length do vector
+						var theSignal = results.rows.filter(turma => turma['coordenador'] == true);
+						if (theSignal.length > 0) {
+							res.json(1);
+						} else {
+							res.json(0);
+						}
+
+					}
+				})
+			});
+
+
+		} catch (ex) {
+			throw(ex);
+		}
+	},
+
 	getAllStudents(req, res) {
 
 		try {
@@ -265,9 +297,10 @@ module.exports = {
 
 			const CLASS_URL = req["url"].split("/")[1].split("_")[0];
 
+			// certifique-se de somente selecionar ausencias cujos valores sejam positivos
 			pool.connect((err, client, done) => {
 			  if (err) throw err
-			  client.query('SELECT estudantecod, disciplina_nome, ausencia, material, disciplinar, participacao FROM falta WHERE turma_id = $1', [CLASS_URL], (err,results)=> {
+			  client.query('SELECT estudantecod, disciplina_nome, ausencia, material, disciplinar, participacao FROM falta WHERE turma_id = $1 AND ausencia > $2', [CLASS_URL, 0], (err,results)=> {
 			    done();
 
 			    if (err) {
@@ -288,17 +321,52 @@ module.exports = {
 		try {
 			const CLASS_URL = req["url"].split("/")[1].split("_")[0];
 
+			// antes de enviar as infos de notas, decida em qual nível é que a turma esta
 			pool.connect((err, client, done) => {
-			  if (err) throw err
-			  client.query('SELECT estudantecod, comportamento, mac, pp1, pp2, ct, disciplina_nome ,trimestre FROM minipauta WHERE turma_id = $1', [CLASS_URL], (err,results)=> {
-			    done();
+				if (err) throw err
+				client.query('SELECT nome_class FROM turma WHERE turma_id = $1', [CLASS_URL], (err,results)=> {
+					done();
+					if (err) {
+						console.log(err.stack)
+					} else {
 
-			    if (err) {
-			      console.log(err.stack)
-			    } else {
-			      res.json(results.rows)
-			    }
-			  })
+						if (
+									results.rows[0]['nome_class'] == 'Iniciação' || results.rows[0]['nome_class'] == '1ª Classe' ||
+									results.rows[0]['nome_class'] == '2ª Classe' || results.rows[0]['nome_class'] == '3ª Classe' ||
+									results.rows[0]['nome_class'] == '4ª Classe'
+						) {
+
+							// envie dados para turmas do ensino primário
+							pool.connect((err, client, done) => {
+								if (err) throw err
+								client.query('SELECT estudantecod, avaliacaodisciplinar, situacaonotas, disciplina_nome ,resolucao_de_tarefas, trimestre FROM minipauta_primario WHERE turma_id = $1', [CLASS_URL], (error,resu)=> {
+									done();
+									if (error) {
+										console.log(error.stack)
+									} else {
+										res.json(resu.rows)
+									}
+								})
+							});
+
+						} else {
+
+							// envie dados para turmas do Iº ciclo e ensino técnico
+							pool.connect((err, client, done) => {
+								if (err) throw err
+								client.query('SELECT estudantecod, comportamento, pp1, disciplina_nome ,trimestre, participacao FROM minipauta WHERE turma_id = $1', [CLASS_URL], (error,resu)=> {
+									done();
+									if (error) {
+										console.log(error.stack)
+									} else {
+										res.json(resu.rows)
+									}
+								})
+							});
+
+						}
+					}
+				})
 			});
 
 		} catch (ex) {
@@ -406,24 +474,71 @@ module.exports = {
 
 												// quando se regista um professor pela primeira vez
 												if (resuInner.rows.length == 0) {
-													pool.connect((err, client, done)=> {
-														if (err) throw err
-														client.query('INSERT INTO turmasdoprofessor (turma_id, disciplina_nome, coordenador, usercod, nome) VALUES ($1, $2, $3, $4, $5)',
-															[
-																req.body['turma_id'],
-																req.body['nomedisciplina'],
-																req.body['coordenador'],
-																FIXED_ID,
-																req.body['name']
-															], (error,resu)=> {
-																done();
-																if (err) {
-																	console.log(err.stack)
-																} else {
-																	res.json("registo salvo");
-																}
-														})
-													});
+
+													// se este professor for coordenador de uma turma, registe-o também para a disciplina de avaliações geral
+													if (req.body['coordenador']) {
+
+														pool.connect((err, client, done)=> {
+															if (err) throw err
+															client.query('INSERT INTO turmasdoprofessor (turma_id, disciplina_nome, coordenador, usercod, nome) VALUES ($1, $2, $3, $4, $5)',
+																[
+																	req.body['turma_id'],
+																	req.body['nomedisciplina'],
+																	req.body['coordenador'],
+																	FIXED_ID,
+																	req.body['name']
+																], (error,resu)=> {
+																	done();
+																	if (err) {
+																		console.log(err.stack)
+																	} else {
+
+																		// registe este professor para a disciplina de avaliações gerais
+																		pool.connect((err, client, done)=> {
+																			if (err) throw err
+																			client.query('INSERT INTO turmasdoprofessor (turma_id, disciplina_nome, coordenador, usercod, nome) VALUES ($1, $2, $3, $4, $5)',
+																				[
+																					req.body['turma_id'],
+																					'Avaliação Geral',
+																					req.body['coordenador'],
+																					FIXED_ID,
+																					req.body['name']
+																				], (error,resu)=> {
+																					done();
+																					if (err) {
+																						console.log(err.stack)
+																					} else {
+																						res.json("registo salvo");
+																					}
+																			})
+																		});
+
+																	}
+															})
+														});
+
+													} else {
+
+														pool.connect((err, client, done)=> {
+															if (err) throw err
+															client.query('INSERT INTO turmasdoprofessor (turma_id, disciplina_nome, coordenador, usercod, nome) VALUES ($1, $2, $3, $4, $5)',
+																[
+																	req.body['turma_id'],
+																	req.body['nomedisciplina'],
+																	req.body['coordenador'],
+																	FIXED_ID,
+																	req.body['name']
+																], (error,resu)=> {
+																	done();
+																	if (err) {
+																		console.log(err.stack)
+																	} else {
+																		res.json("registo salvo");
+																	}
+															})
+														});
+
+													}
 
 												} else {
 
@@ -452,6 +567,27 @@ module.exports = {
 													        }
 													    })
 													  });
+
+														// registe este professor para a disciplina de avaliações gerais
+														pool.connect((err, client, done)=> {
+															if (err) throw err
+															client.query('INSERT INTO turmasdoprofessor (turma_id, disciplina_nome, coordenador, usercod, nome) VALUES ($1, $2, $3, $4, $5)',
+																[
+																	req.body['turma_id'],
+																	'Avaliação Geral',
+																	req.body['coordenador'],
+																	FIXED_ID,
+																	req.body['name']
+																], (error,resu)=> {
+																	done();
+																	if (err) {
+																		console.log(err.stack)
+																	} else {
+																		res.json("registo salvo");
+																	}
+															})
+														});
+
 													} else if (!req.body['coordenador'] && subjectAlreadyTaken.length == 0) {
 														// this teacher is safe to register
 														pool.connect((err, client, done)=> {
@@ -521,7 +657,27 @@ module.exports = {
 														if (err) {
 															console.log(err.stack)
 														} else {
-															res.json("registo salvo")
+
+															// registe este professor para a disciplina de avaliações gerais
+															pool.connect((err, client, done)=> {
+																if (err) throw err
+																client.query('INSERT INTO turmasdoprofessor (turma_id, disciplina_nome, coordenador, usercod, nome) VALUES ($1, $2, $3, $4, $5)',
+																	[
+																		req.body['turma_id'],
+																		'Avaliação Geral',
+																		req.body['coordenador'],
+																		results.rows[0]['usercod'],
+																		results.rows[0]['name']
+																	], (error,resu)=> {
+																		done();
+																		if (err) {
+																			console.log(err.stack)
+																		} else {
+																			res.json("registo salvo");
+																		}
+																})
+															});
+
 														}
 												})
 											})
@@ -568,6 +724,7 @@ module.exports = {
 		try {
 
 			var date = new Date();
+			console.log(req.body);
 
 			// iterar sobre todos-2 elementos do vector com as infos de faltas dos estudantes
 			for (let estudantes = 0; estudantes < req.body['faultsObject'].length-2; estudantes++) {
@@ -596,10 +753,182 @@ module.exports = {
 				  })
 				});
 
+				// certifique-te de que não há ausencias negativas na base de dados
+				pool.connect((err, client, done) => {
+					if (err) throw err
+					client.query('UPDATE falta SET ausencia = $1 WHERE ausencia < $2',
+						[0, 0], (err,results)=> {
+						done();
+						if (err) {
+							console.log(err.stack)
+						} else {
+							console.log("faltas negativas actualizadas");
+						}
+					})
+				});
+
 			}
 
 		} catch (ex) {
 			throw (ex);
+		}
+
+	},
+
+	marcarNotas(req, res) {
+		try {
+
+			var counrSucessInserts = 1;
+
+			// inserir as notas na minipauta do ensino primário
+			if (req.body['gradesObject'][0]['nivel'] == 'primario') {
+
+				req.body['gradesObject'].forEach((estudante, index)=>{
+					if (index > 0) {
+
+						pool.connect((err, client, done) => {
+						  if (err) throw err
+						  client.query(`INSERT INTO minipauta_primario
+									(
+										estudantecod,
+										avaliacaodisciplinar,
+										situacaonotas,
+										disciplina_nome,
+										resolucao_de_tarefas,
+										turma_id,
+										trimestre
+									) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+								[
+									estudante['estudantecod'],
+									estudante['avaliacaodisciplinar'],
+									estudante['situacaonotas'],
+									req.body['gradesObject'][0]['disciplina_nome'],
+									estudante['resolucao_de_tarefas'],
+									req.body['gradesObject'][0]['turma_id'],
+									'IIº'
+								],  (err,results)=> {
+						    done();
+						    if (err) {
+						      console.log(err.stack)
+						    } else {
+									//-> grades sent
+						    }
+						  })
+						});
+
+						counrSucessInserts++;
+
+					}
+				})
+
+				if (counrSucessInserts == req.body['gradesObject'].length - 1) {
+					res.json("notas enviadas");
+				}
+
+			}
+
+			// inserir as notas na minipauta do ensino tecnico
+			else {
+
+				req.body['gradesObject'].forEach((estudante, index)=>{
+					if (index > 0) {
+
+						pool.connect((err, client, done) => {
+						  if (err) throw err
+						  client.query(`INSERT INTO minipauta
+									(
+										estudantecod,
+										comportamento,
+										pp1,
+										trimestre,
+										disciplina_nome,
+										turma_id,
+										participacao
+									) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+								[
+									estudante['estudantecod'],
+									estudante['avaliacaodisciplinar'],
+									estudante['pp1'],
+									'IIº',
+									req.body['gradesObject'][0]['disciplina_nome'],
+									req.body['gradesObject'][0]['turma_id'],
+									estudante['participacao']
+								],  (err,results)=> {
+						    done();
+						    if (err) {
+						      console.log(err.stack)
+						    } else {
+									//-> grades sent
+						    }
+						  })
+						});
+
+						counrSucessInserts++;
+					}
+				})
+
+				if (counrSucessInserts == req.body['gradesObject'].length - 1) {
+					res.json("notas enviadas");
+				}
+
+			}
+
+		} catch (ex) {
+			throw(ex);
+		}
+
+	},
+
+	justificativo(req, res) {
+
+		try {
+
+			console.log(req.body['faultsObject']);
+
+			// itera sobre as disciplinas e nºs de faltas a justificar
+			req.body['faultsObject']['subjects'].forEach((disciplina)=>{
+
+				// apague com uma série sucessiva de updates o número de faltas para esta
+				// disciplina em questão.
+				var numeroDeFaltas = disciplina['numeroFaltas'];
+
+				pool.connect((err, client, done) => {
+					if (err) throw err
+					client.query('UPDATE falta SET ausencia = ausencia - $1 WHERE estudantecod = $2 AND disciplina_nome = $3',
+					 	[
+							numeroDeFaltas,
+							req.body['faultsObject']['studentCod']['estudantecod'],
+							disciplina['nomeDisciplina']
+						], (err,results)=> {
+						done();
+						if (err) {
+							console.log(err.stack)
+						} else {
+							console.log("faltas eliminadas");
+						}
+					})
+				});
+
+				// certifique-te de que não há ausencias negativas na base de dados
+				pool.connect((err, client, done) => {
+					if (err) throw err
+					client.query('UPDATE falta SET ausencia = $1 WHERE ausencia < $2',
+					 	[0, 0], (err,results)=> {
+						done();
+						if (err) {
+							console.log(err.stack)
+						} else {
+							console.log("faltas negativas actualizadas");
+						}
+					})
+				});
+
+			});
+
+			res.json("faltas justificadas");
+
+		} catch (ex) {
+			throw(ex);
 		}
 
 	},
