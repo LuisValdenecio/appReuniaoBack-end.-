@@ -46,14 +46,17 @@ app.use(function (err, req, res, next) {
 //app.get('/homeadmin', auth, db.getSetupValues);
 app.get('/classes', auth, db.getAllClasses);
 app.get('/students', auth, db.getAllStudents);
+app.get('/justificativos', auth, db.getJustificativos);
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_coord/, auth, db.getTeacherCoordStatus);               // --> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_teacherSubjects$/, auth, db.getThisTeacherSubjects);   // --> this might be eliminated soon! (front-end dependency)
+app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_comparacao$/, auth, db.getComparacao);                                                    // --> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_students$/, auth, db.getAllUsers);                                                   // --> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_teacherClasses$/, auth, db.getTeacherClasses);                                       // --> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_teachers$/, auth, db.getClassTeachers);                                              // --> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_classe$/, auth, db.getClassGrade);                                                   // -->> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_faults$/, auth, db.getThisCLassFaults);                                              // -->> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_grades$/, auth, db.getClassGrades);                                                  // -->> this might be eliminated soon! (front-end dependency)
+app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_markedSubjects$/, auth, db.getTheMarkedSubjects);                                    // -->> this might be eliminated soon! (front-end dependency)
 app.get(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)$/, auth, db.getAllSubjects);                                                         // -->> this might be eliminated soon! (front-end dependency)
 
 app.post('/teachers',  db.saveTeacher);
@@ -61,5 +64,7 @@ app.post('/login', db.loginUser);
 app.post('/faltas', db.faltas);
 app.post('/notas', db.marcarNotas);
 app.post('/justificativo', db.justificativo);
+app.post(/(\w+-)(\w+-)(\w+-)(\w+-)(\w+)_globalScores/, db.saveGlobalScore);   // --> this might be eliminated soon! (front-end dependency)
+
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))

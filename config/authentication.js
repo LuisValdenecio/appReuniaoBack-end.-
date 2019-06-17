@@ -27,7 +27,7 @@ module.exports = {
         'codUser': codeUser,
         'typeOfUser' : typeOfUser,
         'email': email,
-        'name': name,
+        'name': ""+name,
         'exp': parseInt(expiry.getTime() / 1000),
       }, process.env.API_CLIENT_SECRET);
 
